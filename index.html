@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#10212b" />
-  <meta name="description" content="Compare online First Fit bin packing with true and user-reported job sizes." />
-  <title>Bin Packing · First Fit Lab</title>
+  <meta name="description" content="Explore how placement algorithms and reported job sizes change bin packing outcomes." />
+  <title>Bin Packing Research Lab</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2310212b'/%3E%3Cpath d='M12 21h40v31H12z' fill='none' stroke='%23f2b544' stroke-width='4'/%3E%3Cpath d='M12 36h40M28 21v15M40 36v16' stroke='%23f2b544' stroke-width='4'/%3E%3C/svg%3E" />
   <link rel="stylesheet" href="./styles.css" />
   <script src="./probability.js" defer></script>
@@ -13,12 +13,12 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="brand"><span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span><span>Bin Packing <b>/</b> FF Lab</span></div>
-    <div class="top-note">Online arrivals · Unit-capacity bins · First Fit</div>
+    <div class="brand"><span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span><span>Bin Packing <b>/</b> Research Lab</span></div>
+    <div class="top-note">Interactive bin packing experiments · Unit-capacity bins</div>
   </header>
   <main class="workspace">
     <aside class="controls" aria-labelledby="config-title">
-      <div class="panel-heading"><div><p class="eyebrow">EXPERIMENT SETUP</p><h1 id="config-title">Experiment setup</h1></div><span class="edition">01 / 02</span><button id="advanced-toggle" class="advanced-toggle" type="button" aria-expanded="false">More settings</button></div>
+      <div class="panel-heading"><div><p class="eyebrow">EXPERIMENT SETUP</p><h1 id="config-title">Design your experiment</h1></div><span class="edition">01 / 02</span><button id="advanced-toggle" class="advanced-toggle" type="button" aria-expanded="false">More settings</button></div>
       <p class="intro">Both models use the same true job sizes and arrival order. Change the settings and rerun the experiment.</p>
       <form id="experiment-form">
         <section class="control-section" aria-labelledby="sample-heading">
@@ -27,40 +27,43 @@
             <label class="field"><span>Number of jobs <small>N</small></span><input id="job-count" type="number" min="500" max="5000" step="1" value="1000" required /><em>500–5000 per trial</em></label>
             <label class="field"><span>Number of trials <small>R</small></span><input id="trial-count" type="number" min="1" max="300" step="1" value="100" required /><em>Independent trials</em></label>
           </div>
+          <label class="field algorithm-field" for="packing-algorithm"><span>Placement algorithm</span><select id="packing-algorithm"><option value="first-fit">First Fit</option><option value="best-fit">Best Fit</option><option value="next-fit">Next Fit</option><option value="random-fit">Random Fit</option></select></label>
+          <p id="algorithm-description" class="field-note">First Fit checks open bins from oldest to newest and uses the first bin with room.</p>
           <p class="field-note">True sizes are sampled independently: a ~ Uniform(0, 1)</p>
         </section>
-        <section class="control-section" aria-labelledby="choice-heading">
-          <h2 id="choice-heading"><span>02</span> Mode selection probability</h2>
-          <p class="section-copy">g(a) is the probability of choosing Simple mode for a job of true size a. Choose a preset or edit the expression.</p>
-          <label class="field" for="probability-preset"><span>Preset function</span><select id="probability-preset"><option value="logistic">Decreasing logistic</option><option value="decreasing">Linear decrease</option><option value="increasing">Linear increase</option><option value="constant">Constant probability</option><option value="step">Step function</option><option value="custom">Custom</option></select></label>
-          <label class="field expression-field" for="probability-expression"><span>Probability expression <small>g(a)</small></span><input id="probability-expression" type="text" value="1/(1+exp(12*(a-0.5)))" maxlength="180" spellcheck="false" autocomplete="off" required /></label>
-          <p class="field-note expression-help">Variable a ∈ [0, 1]. Supports +, −, ×, ÷, ^, parentheses, exp, log, sqrt, abs, min, max, clamp, and step.</p>
-          <div class="curve-frame"><svg id="probability-chart" viewBox="0 0 320 122" role="img" aria-label="Probability of choosing Simple mode by true job size"></svg></div>
-          <p id="curve-error" class="form-error" role="status" hidden></p>
-        </section>
         <section class="control-section" aria-labelledby="report-heading">
-          <h2 id="report-heading"><span>03</span> Reported size</h2>
+          <h2 id="report-heading"><span>02</span> Perceived &amp; reported size</h2>
+          <p class="section-copy">A job is first perceived as z = clip(a + ε, 0, 1), where a is its true size and ε is judgment error. The next section uses z to select a mode; that mode determines the final reported size.</p>
           <div class="field-grid two">
-            <label class="field"><span>Simple upper bound <small>tₛ</small></span><input id="simple-threshold" type="number" min="0" max="1" step="0.01" value="0.2" required /></label>
-            <label class="field"><span>Hard lower bound <small>tₗ</small></span><input id="hard-threshold" type="number" min="0" max="1" step="0.01" value="0.7" required /></label>
+            <label class="field"><span>Simple upper bound <small>tₛ</small></span><input id="simple-threshold" type="number" min="0" max="1" step="0.01" value="0.2" required /><em>In Simple mode, report min(tₛ, z): the reported size cannot exceed this cap.</em></label>
+            <label class="field"><span>Hard lower bound <small>tₗ</small></span><input id="hard-threshold" type="number" min="0" max="1" step="0.01" value="0.7" required /><em>In Hard mode, report max(tₗ, z): the reported size cannot fall below this floor.</em></label>
           </div>
           <div class="field-grid error-grid">
             <label class="field"><span>Judgment error</span><select id="error-type"><option value="none">No error</option><option value="normal" selected>Normal distribution</option><option value="uniform">Uniform distribution</option><option value="laplace">Laplace distribution</option><option value="triangular">Symmetric triangular</option><option value="cauchy">Cauchy distribution</option><option value="exponential">Centered exponential</option><option value="two-point">Two-point distribution</option></select></label>
             <label class="field" id="error-scale-field"><span id="error-scale-label">Standard deviation σ</span><input id="error-scale" type="number" min="0" max="1" step="0.01" value="0.08" required /></label>
           </div>
-          <p id="error-description" class="field-note">Normal distribution: ε ~ N(0, σ²). Clip a + ε to [0, 1] before applying the thresholds.</p>
+          <p id="error-description" class="field-note">Normal distribution: ε ~ N(0, σ²). Clip a + ε to [0, 1] to obtain z.</p>
+        </section>
+        <section class="control-section" aria-labelledby="choice-heading">
+          <h2 id="choice-heading"><span>03</span> Mode selection probability</h2>
+          <p class="section-copy">g(z) is the probability of choosing Simple mode for a job with perceived size z. Mode selection never uses the true size directly.</p>
+          <label class="field" for="probability-preset"><span>Preset function</span><select id="probability-preset"><option value="logistic">Decreasing logistic</option><option value="decreasing">Linear decrease</option><option value="increasing">Linear increase</option><option value="constant">Constant probability</option><option value="step">Step function</option><option value="custom">Custom</option></select></label>
+          <label class="field expression-field" for="probability-expression"><span>Probability expression <small>g(z)</small></span><input id="probability-expression" type="text" value="1/(1+exp(12*(z-0.5)))" maxlength="180" spellcheck="false" autocomplete="off" required /></label>
+          <p class="field-note expression-help">Variable z ∈ [0, 1]. Supports +, −, ×, ÷, ^, parentheses, exp, log, sqrt, abs, min, max, clamp, and step.</p>
+          <div class="curve-frame"><svg id="probability-chart" viewBox="0 0 320 122" role="img" aria-label="Probability of choosing Simple mode by perceived job size"></svg></div>
+          <p id="curve-error" class="form-error" role="status" hidden></p>
         </section>
         <button class="run-button" type="submit"><span aria-hidden="true">▶</span> Run random experiment</button>
         <p id="form-error" class="form-error" role="alert" hidden></p>
       </form>
     </aside>
     <section class="results" aria-labelledby="results-heading">
-      <div class="results-heading"><div><p class="eyebrow">FIRST FIT / COMPARISON</p><h2 id="results-heading">Bin count comparison</h2></div><div class="run-badge" id="run-badge">Ready to run</div></div>
-      <div class="result-lead"><p>Model 1 packs true sizes. Model 2 packs reported sizes only; true sizes do not affect placement in that model.</p></div>
+      <div class="results-heading"><div><p class="eyebrow">PAIRED EXPERIMENT / COMPARISON</p><h2 id="results-heading">Bin count comparison</h2></div><div class="run-badge" id="run-badge">Ready to run</div></div>
+      <div class="result-lead"><p>Both models use the selected algorithm and the same jobs in each trial. Model 1 packs true sizes; Model 2 packs reported sizes.</p></div>
       <div class="stat-row"><article class="stat-card stat-true"><div class="stat-label"><i></i>Model 1 · True sizes</div><div class="stat-value" id="true-mean">—</div><div class="stat-unit">Mean bins used</div></article><article class="stat-card stat-reported"><div class="stat-label"><i></i>Model 2 · Reported sizes</div><div class="stat-value" id="reported-mean">—</div><div class="stat-unit">Mean bins used</div></article><article class="stat-card stat-difference"><div class="stat-label">Paired difference · Model 2 − Model 1</div><div class="stat-value" id="difference-mean">—</div><div class="stat-unit" id="difference-note">Mean of within-trial differences</div></article></div>
       <article class="chart-card" aria-labelledby="main-chart-title"><div class="chart-heading"><div><p class="eyebrow">RESULTS / BOX COUNT</p><h3 id="main-chart-title">Bin count distribution</h3></div><div class="legend"><span><i class="true-dot"></i>Model 1</span><span><i class="reported-dot"></i>Model 2</span></div></div><div id="main-chart" class="main-chart" role="img" aria-label="Distribution of bins used by both models"></div><p class="chart-caption">Lines show the 5th–95th percentile range; dots show means. Both models use the same jobs in each trial.</p></article>
-      <div class="bottom-grid"><article class="insight-card"><p class="eyebrow">PAIRED DIFFERENCE</p><h3>Bin count difference</h3><div id="difference-chart" class="difference-chart" role="img" aria-label="Distribution of Model 2 minus Model 1 bin counts"></div><p class="chart-caption">Positive values mean Model 2 uses more bins.</p></article><article class="model-card"><p class="eyebrow">MODEL RULES</p><h3>How this experiment works</h3><div class="rule"><span class="rule-number">1</span><p>Jobs arrive in order. First Fit scans bins from oldest to newest and places each job in the first bin with enough remaining capacity.</p></div><div class="rule"><span class="rule-number">2</span><p>Simple mode reports min(tₛ, z); Hard mode reports max(tₗ, z), where z = clip(a + ε, 0, 1).</p></div><div class="rule"><span class="rule-number">3</span><p>Each model counts its own bins. Model 2 does not adjust placements for true sizes.</p></div></article></div>
-      <p class="footnote">Trials are independent. Within each trial, both models share the true jobs and arrival order. Experiment data stays in your browser.</p>
+      <div class="bottom-grid"><article class="insight-card"><p class="eyebrow">PAIRED DIFFERENCE</p><h3>Bin count difference</h3><div id="difference-chart" class="difference-chart" role="img" aria-label="Distribution of Model 2 minus Model 1 bin counts"></div><p class="chart-caption">Positive values mean Model 2 uses more bins.</p></article><article class="model-card"><p class="eyebrow">EXPERIMENT RULES</p><h3>How to read this experiment</h3><div class="rule"><span class="rule-number">1</span><p>Each trial draws jobs with true sizes a between 0 and 1. Bins have capacity 1; a job opens a new bin if no eligible bin fits.</p></div><div class="rule"><span class="rule-number">2</span><p>Judgment error gives perceived size z = clip(a + ε, 0, 1). Simple mode is chosen with probability g(z); otherwise the job uses Hard mode.</p></div><div class="rule"><span class="rule-number">3</span><p>Simple reports min(tₛ, z), capped at tₛ. Hard reports max(tₗ, z), floored at tₗ.</p></div><div class="rule"><span class="rule-number">4</span><p id="selected-algorithm-rule">First Fit checks bins in opening order and uses the first one with room. Both models use this same placement rule.</p></div><div class="rule"><span class="rule-number">5</span><p>Model 1 packs true sizes; Model 2 packs reported sizes without checking true sizes. Compare their bin counts across paired trials.</p></div></article></div>
+      <p class="footnote">Trials are independent. Within each trial, both models share the true jobs and arrival order. Random Fit draws placement choices separately for each model. Experiment data stays in your browser.</p>
     </section>
   </main>
 </body>

@@ -6,12 +6,19 @@
   const runButton = form.querySelector("button[type=submit]");
   const errorTypes = new Set(["none", "normal", "uniform", "laplace", "triangular", "cauchy", "exponential", "two-point"]);
   const probabilityPresets = {
-    logistic: "1/(1+exp(12*(a-0.5)))",
-    decreasing: "1-a",
-    increasing: "a",
+    logistic: "1/(1+exp(12*(z-0.5)))",
+    decreasing: "1-z",
+    increasing: "z",
     constant: "0.5",
-    step: "step(0.5-a)",
+    step: "step(0.5-z)",
   };
+  const algorithmDescriptions = {
+    "first-fit": "First Fit checks open bins from oldest to newest and uses the first bin with room.",
+    "best-fit": "Best Fit chooses the open bin that leaves the least unused space; ties go to the oldest bin.",
+    "next-fit": "Next Fit tries only the current bin. If the job does not fit, it opens a new bin and never returns to earlier bins.",
+    "random-fit": "Random Fit chooses uniformly among all open bins with room. If none fits, it opens a new bin.",
+  };
+  const algorithmLabels = { "first-fit": "First Fit", "best-fit": "Best Fit", "next-fit": "Next Fit", "random-fit": "Random Fit" };
   let runSequence = 0;
 
   const clamp = (value, low, high) => Math.min(high, Math.max(low, value));
@@ -51,6 +58,134 @@
     return opened;
   }
 
+  function nextFit(sizes) {
+    let opened = 0;
+    let remaining = 0;
+    for (const size of sizes) {
+      if (opened === 0 || remaining + 1e-12 < size) {
+        opened += 1;
+        remaining = 1 - size;
+      } else {
+        remaining = Math.max(0, remaining - size);
+      }
+    }
+    return opened;
+  }
+
+  function orderedFit(sizes, randomChoice) {
+    // A treap keeps open bins ordered by free space, then by opening order.
+    const compare = (left, right) => left.remaining - right.remaining || left.order - right.order;
+    const updateCount = (node) => {
+      node.count = 1 + (node.left?.count ?? 0) + (node.right?.count ?? 0);
+      return node;
+    };
+    const merge = (left, right) => {
+      if (!left) return right;
+      if (!right) return left;
+      if (left.priority < right.priority) {
+        left.right = merge(left.right, right);
+        return updateCount(left);
+      }
+      right.left = merge(left, right.left);
+      return updateCount(right);
+    };
+    const insert = (root, node) => {
+      if (!root) return node;
+      if (compare(node, root) < 0) {
+        root.left = insert(root.left, node);
+        if (root.left.priority < root.priority) {
+          const pivot = root.left;
+          root.left = pivot.right;
+          pivot.right = root;
+          updateCount(root);
+          return updateCount(pivot);
+        }
+      } else {
+        root.right = insert(root.right, node);
+        if (root.right.priority < root.priority) {
+          const pivot = root.right;
+          root.right = pivot.left;
+          pivot.left = root;
+          updateCount(root);
+          return updateCount(pivot);
+        }
+      }
+      return updateCount(root);
+    };
+    const remove = (root, node) => {
+      if (root === node) return merge(root.left, root.right);
+      if (compare(node, root) < 0) root.left = remove(root.left, node);
+      else root.right = remove(root.right, node);
+      return updateCount(root);
+    };
+    const priorityFor = (order) => {
+      let value = (order + 1) ^ 0x9e3779b9;
+      value ^= value << 13;
+      value ^= value >>> 17;
+      value ^= value << 5;
+      return value >>> 0;
+    };
+    let root = null;
+    let opened = 0;
+    for (const size of sizes) {
+      let current;
+      let chosen = null;
+      if (randomChoice) {
+        const cutoff = size - 1e-12;
+        let below = 0;
+        current = root;
+        while (current) {
+          if (current.remaining < cutoff) {
+            below += 1 + (current.left?.count ?? 0);
+            current = current.right;
+          } else {
+            current = current.left;
+          }
+        }
+        const eligible = (root?.count ?? 0) - below;
+        if (eligible > 0) {
+          let rank = below + Math.floor(Math.random() * eligible);
+          current = root;
+          while (current) {
+            const leftCount = current.left?.count ?? 0;
+            if (rank < leftCount) current = current.left;
+            else if (rank === leftCount) { chosen = current; break; }
+            else { rank -= leftCount + 1; current = current.right; }
+          }
+        }
+      } else {
+        current = root;
+        while (current) {
+          if (current.remaining + 1e-12 >= size) {
+            chosen = current;
+            current = current.left;
+          } else {
+            current = current.right;
+          }
+        }
+      }
+      if (chosen) {
+        root = remove(root, chosen);
+        chosen.remaining = Math.max(0, chosen.remaining - size);
+        chosen.left = null;
+        chosen.right = null;
+        chosen.count = 1;
+        root = insert(root, chosen);
+      } else {
+        root = insert(root, { remaining: 1 - size, order: opened, priority: priorityFor(opened), left: null, right: null, count: 1 });
+        opened += 1;
+      }
+    }
+    return opened;
+  }
+
+  const packers = {
+    "first-fit": firstFit,
+    "best-fit": (sizes) => orderedFit(sizes, false),
+    "next-fit": nextFit,
+    "random-fit": (sizes) => orderedFit(sizes, true),
+  };
+
   function noise(type, scale) {
     if (type === "none" || scale === 0) return 0;
     if (type === "uniform") return (2 * Math.random() - 1) * scale;
@@ -71,6 +206,7 @@
     const settings = {
       jobs: Number(raw.jobs),
       trials: Number(raw.trials),
+      algorithm: String(raw.algorithm),
       probabilityExpression: String(raw.probabilityExpression),
       simpleThreshold: Number(raw.simpleThreshold),
       hardThreshold: Number(raw.hardThreshold),
@@ -80,6 +216,7 @@
     const checks = [
       [Number.isInteger(settings.jobs) && settings.jobs >= 500 && settings.jobs <= 5000, "Number of jobs must be an integer from 500 to 5000."],
       [Number.isInteger(settings.trials) && settings.trials >= 1 && settings.trials <= 300, "Number of trials must be an integer from 1 to 300."],
+      [Object.hasOwn(packers, settings.algorithm), "Choose a supported placement algorithm."],
       [Number.isFinite(settings.simpleThreshold) && settings.simpleThreshold >= 0 && settings.simpleThreshold <= 1, "Simple upper bound must be between 0 and 1."],
       [Number.isFinite(settings.hardThreshold) && settings.hardThreshold >= 0 && settings.hardThreshold <= 1, "Hard lower bound must be between 0 and 1."],
       [errorTypes.has(settings.errorType), "Choose a supported error distribution."],
@@ -95,6 +232,7 @@
     return validate({
       jobs: $("job-count").value,
       trials: $("trial-count").value,
+      algorithm: $("packing-algorithm").value,
       probabilityExpression: $("probability-expression").value,
       simpleThreshold: $("simple-threshold").value,
       hardThreshold: $("hard-threshold").value,
@@ -113,12 +251,12 @@
       for (let job = 0; job < settings.jobs; job += 1) {
         const size = Math.random();
         const perceived = clamp(size + noise(settings.errorType, settings.errorScale), 0, 1);
-        const simple = Math.random() < probability(size);
+        const simple = Math.random() < probability(perceived);
         actual.push(size);
         reported.push(simple ? Math.min(settings.simpleThreshold, perceived) : Math.max(settings.hardThreshold, perceived));
       }
-      trueCounts.push(firstFit(actual));
-      reportedCounts.push(firstFit(reported));
+      trueCounts.push(packers[settings.algorithm](actual));
+      reportedCounts.push(packers[settings.algorithm](reported));
       if ((trial + 1) % 5 === 0 || trial + 1 === settings.trials) {
         if (runId !== runSequence) throw new Error("A newer experiment has replaced this run.");
         onProgress(trial + 1, settings.trials);
@@ -131,7 +269,7 @@
 
   function drawProbabilityCurve() {
     const left = 29, right = 309, top = 8, bottom = 101;
-    const axes = `<line x1="${left}" y1="${top}" x2="${left}" y2="${bottom}" stroke="#b9cbc9"/><line x1="${left}" y1="${bottom}" x2="${right}" y2="${bottom}" stroke="#b9cbc9"/><line x1="${left}" y1="54.5" x2="${right}" y2="54.5" stroke="#e3ebea" stroke-dasharray="4 4"/><g fill="#82999b" font-size="11" font-family="system-ui,sans-serif"><text x="2" y="13">1</text><text x="7" y="104">0</text><text x="${left}" y="118" text-anchor="middle">0</text><text x="${right}" y="118" text-anchor="middle">1</text><text x="${(left + right) / 2}" y="118" text-anchor="middle">True size a</text></g>`;
+    const axes = `<line x1="${left}" y1="${top}" x2="${left}" y2="${bottom}" stroke="#b9cbc9"/><line x1="${left}" y1="${bottom}" x2="${right}" y2="${bottom}" stroke="#b9cbc9"/><line x1="${left}" y1="54.5" x2="${right}" y2="54.5" stroke="#e3ebea" stroke-dasharray="4 4"/><g fill="#82999b" font-size="11" font-family="system-ui,sans-serif"><text x="2" y="13">1</text><text x="7" y="104">0</text><text x="${left}" y="118" text-anchor="middle">0</text><text x="${right}" y="118" text-anchor="middle">1</text><text x="${(left + right) / 2}" y="118" text-anchor="middle">Perceived size z</text></g>`;
     let probability;
     try {
       probability = window.compileProbabilityExpression($("probability-expression").value);
@@ -145,9 +283,9 @@
     }
     let path = "";
     for (let i = 0; i <= 100; i += 1) {
-      const size = i / 100;
-      const x = left + size * (right - left);
-      const y = bottom - probability(size) * (bottom - top);
+      const perceived = i / 100;
+      const x = left + perceived * (right - left);
+      const y = bottom - probability(perceived) * (bottom - top);
       path += `${i ? "L" : "M"}${x.toFixed(2)} ${y.toFixed(2)} `;
     }
     $("probability-chart").innerHTML = `${axes}<path d="${path}" fill="none" stroke="#0b8095" stroke-width="3" stroke-linecap="round"/>`;
@@ -220,7 +358,7 @@
     $("true-mean").textContent = format(result.trueMean);
     $("reported-mean").textContent = format(result.reportedMean);
     $("difference-mean").textContent = `${result.differenceMean > 0 ? "+" : ""}${format(result.differenceMean)}`;
-    $("run-badge").textContent = `${result.settings.jobs} jobs × ${result.settings.trials} trials`;
+    $("run-badge").textContent = `${algorithmLabels[result.settings.algorithm]} · ${result.settings.jobs} jobs × ${result.settings.trials} trials`;
     $("difference-note").textContent = result.differenceMean > 0 ? "Reported-size model uses more bins on average" : result.differenceMean < 0 ? "Reported-size model uses fewer bins on average" : "Both models use the same mean number of bins";
     drawMainChart(result);
     drawDifferenceChart(result);
@@ -276,7 +414,13 @@
     };
     $("error-scale-field").hidden = type === "none";
     $("error-scale-label").textContent = details[type][0];
-    $("error-description").textContent = `${details[type][1]}Clip a + ε to [0, 1] before applying the thresholds.`;
+    $("error-description").textContent = `${details[type][1]}Clip a + ε to [0, 1] to obtain z before selecting a mode.`;
+  }
+
+  function updateAlgorithmDescription() {
+    const description = algorithmDescriptions[$("packing-algorithm").value];
+    $("algorithm-description").textContent = description;
+    $("selected-algorithm-rule").textContent = `${description} Both models use this same placement rule.`;
   }
 
   form.addEventListener("submit", (event) => { event.preventDefault(); executeFromForm(); });
@@ -297,8 +441,10 @@
     drawProbabilityCurve();
   });
   $("error-type").addEventListener("change", updateErrorDescription);
+  $("packing-algorithm").addEventListener("change", updateAlgorithmDescription);
   drawProbabilityCurve();
   updateErrorDescription();
+  updateAlgorithmDescription();
   executeFromForm();
 
   // Browser agents can run the same visible experiment without a separate backend.
@@ -308,28 +454,30 @@
       properties: {
         jobs: { type: "integer", minimum: 500, maximum: 5000 },
         trials: { type: "integer", minimum: 1, maximum: 300 },
+        algorithm: { type: "string", enum: Object.keys(packers) },
         probabilityExpression: { type: "string", minLength: 1, maxLength: 180 },
         simpleThreshold: { type: "number", minimum: 0, maximum: 1 },
         hardThreshold: { type: "number", minimum: 0, maximum: 1 },
         errorType: { type: "string", enum: [...errorTypes] },
         errorScale: { type: "number", minimum: 0, maximum: 1 },
       },
-      required: ["jobs", "trials", "probabilityExpression", "simpleThreshold", "hardThreshold", "errorType", "errorScale"],
+      required: ["jobs", "trials", "algorithm", "probabilityExpression", "simpleThreshold", "hardThreshold", "errorType", "errorScale"],
       additionalProperties: false,
     };
     try {
       Promise.resolve(document.modelContext.registerTool({
         name: "run_bin_packing_experiment",
-        title: "Run First Fit bin packing experiment",
-        description: "Run paired randomized First Fit bin packing trials with the given settings and update the charts.",
+        title: "Run bin packing experiment",
+        description: "Run paired randomized bin packing trials with the selected algorithm and update the charts.",
         inputSchema: schema,
         annotations: { readOnlyHint: false, untrustedContentHint: false },
         async execute(input) {
           const settings = validate(input);
-          const mapping = { jobs: "job-count", trials: "trial-count", probabilityExpression: "probability-expression", simpleThreshold: "simple-threshold", hardThreshold: "hard-threshold", errorType: "error-type", errorScale: "error-scale" };
+          const mapping = { jobs: "job-count", trials: "trial-count", algorithm: "packing-algorithm", probabilityExpression: "probability-expression", simpleThreshold: "simple-threshold", hardThreshold: "hard-threshold", errorType: "error-type", errorScale: "error-scale" };
           Object.entries(mapping).forEach(([key, id]) => { $(id).value = settings[key]; });
           $("probability-expression").dispatchEvent(new Event("input"));
           updateErrorDescription();
+          updateAlgorithmDescription();
           drawProbabilityCurve();
           const result = await executeSettings(settings);
           return { trueMean: result.trueMean, reportedMean: result.reportedMean, differenceMean: result.differenceMean, trials: settings.trials };

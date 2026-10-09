@@ -60,7 +60,7 @@
         const operator = tokens[cursor++].kind;
         const right = term();
         const previous = left;
-        left = operator === "+" ? (a) => previous(a) + right(a) : (a) => previous(a) - right(a);
+        left = operator === "+" ? (z) => previous(z) + right(z) : (z) => previous(z) - right(z);
       }
       return left;
     }
@@ -70,18 +70,18 @@
         const operator = tokens[cursor++].kind;
         const right = unary();
         const previous = left;
-        left = operator === "*" ? (a) => previous(a) * right(a) : (a) => previous(a) / right(a);
+        left = operator === "*" ? (z) => previous(z) * right(z) : (z) => previous(z) / right(z);
       }
       return left;
     }
     function unary() {
       if (take("+")) return unary();
-      if (take("-")) { const value = unary(); return (a) => -value(a); }
+      if (take("-")) { const value = unary(); return (z) => -value(z); }
       return power();
     }
     function power() {
       const base = primary();
-      if (take("^")) { const exponent = unary(); return (a) => Math.pow(base(a), exponent(a)); }
+      if (take("^")) { const exponent = unary(); return (z) => Math.pow(base(z), exponent(z)); }
       return base;
     }
     function primary() {
@@ -98,7 +98,7 @@
       }
       if (token.kind === "identifier") {
         cursor += 1;
-        if (token.value === "a") return (a) => a;
+        if (token.value === "z") return (z) => z;
         if (token.value === "pi") return () => Math.PI;
         if (token.value === "e") return () => Math.E;
         const selected = functions[token.value];
@@ -111,9 +111,9 @@
         }
         expect(")");
         if (args.length !== selected.arity) throw new Error(`${token.value}() requires ${selected.arity} arguments.`);
-        if (selected.arity === 1) return (a) => selected.apply(args[0](a));
-        if (selected.arity === 2) return (a) => selected.apply(args[0](a), args[1](a));
-        return (a) => selected.apply(args[0](a), args[1](a), args[2](a));
+        if (selected.arity === 1) return (z) => selected.apply(args[0](z));
+        if (selected.arity === 2) return (z) => selected.apply(args[0](z), args[1](z));
+        return (z) => selected.apply(args[0](z), args[1](z), args[2](z));
       }
       throw new Error("Expression syntax error. Check operators and parentheses.");
     }
@@ -123,13 +123,13 @@
     for (let i = 0; i <= 200; i += 1) {
       const value = evaluator(i / 200);
       if (!Number.isFinite(value) || value < -1e-9 || value > 1 + 1e-9) {
-        throw new Error("g(a) must return a finite value between 0 and 1 throughout [0, 1].");
+        throw new Error("g(z) must return a finite value between 0 and 1 throughout [0, 1].");
       }
     }
-    return (a) => {
-      const value = evaluator(a);
+    return (z) => {
+      const value = evaluator(z);
       if (!Number.isFinite(value) || value < -1e-9 || value > 1 + 1e-9) {
-        throw new Error("g(a) is not a valid probability for some job sizes. Edit the expression.");
+        throw new Error("g(z) is not a valid probability for some perceived sizes. Edit the expression.");
       }
       return Math.min(1, Math.max(0, value));
     };
