@@ -2,14 +2,14 @@
 
 An interactive, browser-only experiment comparing two bin packing models under four online placement algorithms.
 
-An [earlier version is hosted online](https://bin-packing-ff-lab.wushilong28.chatgpt.site/); the changes in this copy are local.
+The [hosted demo](https://bin-packing-ff-lab.wushilong28.chatgpt.site/) may still show an earlier version than this repository.
 
 ## Models
 
 There are unlimited bins of capacity 1. Jobs arrive in order, with independent true sizes $a_i\sim\mathrm{Uniform}(0,1)$. The selected placement algorithm uses the size available to its model. If no eligible bin fits, it opens a new bin. The objective is the number of bins used.
 
 - **Model 1: true sizes.** The browser packs jobs using $a_i$.
-- **Model 2: reported sizes.** First calculate perceived size $z_i=\operatorname{clip}(a_i+\varepsilon_i,0,1)$. A job chooses Simple mode with probability $g(z_i)$ and Hard mode otherwise. Simple mode reports $\min(t_s,z_i)$; Hard mode reports $\max(t_l,z_i)$. The browser packs using only these reported sizes. True sizes do not directly affect mode selection or placement in this model.
+- **Model 2: reported sizes.** First calculate perceived size $z_i=\mathrm{clip}(a_i+\varepsilon_i,0,1)$. A job chooses Simple mode with probability $g(z_i)$ and Hard mode otherwise. Simple mode reports $\min(t_s,z_i)$; Hard mode reports $\max(t_l,z_i)$. The browser packs using only these reported sizes. True sizes do not directly affect mode selection or placement in this model.
 
 Both models use the same algorithm and, within each trial, the same true jobs and arrival order. Random Fit makes independent random placement choices for each model. Trials are independent. The charts show mean bin counts, 5th–95th percentile ranges, and paired differences in bin counts between the models.
 
