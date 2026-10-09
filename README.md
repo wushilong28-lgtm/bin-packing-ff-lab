@@ -9,7 +9,7 @@ The [hosted demo](https://bin-packing-ff-lab.wushilong28.chatgpt.site/) may stil
 There are unlimited bins of capacity 1. Jobs arrive in order, with independent true sizes $a_i\sim\mathrm{Uniform}(0,1)$. The selected placement algorithm uses the size available to its model. If no eligible bin fits, it opens a new bin. The objective is the number of bins used.
 
 - **Model 1: true sizes.** The browser packs jobs using $a_i$.
-- **Model 2: reported sizes.** First calculate perceived size $z_i=\mathrm{clip}(a_i+\varepsilon_i,0,1)$. A job chooses Simple mode with probability $g(z_i)$ and Hard mode otherwise. Simple mode reports $\min(t_s,z_i)$; Hard mode reports $\max(t_l,z_i)$. The browser packs using only these reported sizes. True sizes do not directly affect mode selection or placement in this model.
+- **Model 2: reported sizes.** First calculate perceived size $z_i=\mathrm{clip}(a_i+\varepsilon_i,0,1)$. A job chooses Hard mode with probability $g(z_i)$ and Simple mode otherwise. Simple mode reports $\min(t_s,z_i)$; Hard mode reports $\max(t_l,z_i)$. The browser packs using only these reported sizes. True sizes do not directly affect mode selection or placement in this model.
 
 Both models use the same algorithm and, within each trial, the same true jobs and arrival order. Random Fit makes independent random placement choices for each model. Trials are independent. The charts show mean bin counts, 5th–95th percentile ranges, and paired differences in bin counts between the models.
 
@@ -23,17 +23,17 @@ Both models use the same algorithm and, within each trial, the same true jobs an
 ## Settings
 
 - Jobs per trial: 500–5000; trials: 1–300.
-- Simple-mode probability $g(z)$: choose a preset or enter an expression such as `1-z`, `z^2`, or `1/(1+exp(12*(z-0.5)))`. The expression must yield a finite value in $[0,1]$ for all $z\in[0,1]$.
+- Hard-mode probability $g(z)$: choose a preset or enter an expression such as `1-z`, `z^2`, or `1/(1+exp(-12*(z-0.5)))`. The expression must yield a finite value in $[0,1]$ for all $z\in[0,1]$.
 - Judgment error: none, normal, uniform, Laplace, symmetric triangular, Cauchy, centered exponential, or two-point.
 - Simple-mode upper bound $t_s$, Hard-mode lower bound $t_l$, and error scale.
 
 ## Green experiment (`green.html`)
 
-The Green page starts with the same reporting pipeline: true size $a_i$, perceived size $z_i=\mathrm{clip}(a_i+\varepsilon_i,0,1)$, Simple/Hard mode selected from $g(z_i)$, and final reported size $r_i$. **All Green placement decisions and all Green costs use only $r_i$.** True-size bin loads, including any actual load above 1, are not checked or charged.
+The Green page starts with the same reporting pipeline: true size $a_i$, perceived size $z_i=\mathrm{clip}(a_i+\varepsilon_i,0,1)$, Hard mode selected with probability $g(z_i)$ (Simple otherwise), and final reported size $r_i$. **All Green placement decisions and all Green costs use only $r_i$.** True-size bin loads, including any actual load above 1, are not checked or charged.
 
-Bins have reported capacity 1. Let $G\in[0,1]$ be the green fill level and $\beta>0$ the price per unit of reported fill above it. For reported bin loads $L_j$, the objective is
+Bins have reported capacity 1. Let $G\in[0,1]$ be the green fill level, $\beta>0$ the price per unit of reported fill above it, and $B$ the number of bins opened. For reported bin loads $L_j$, the objective is
 
-$$C = N + \beta\sum_j\max(0,L_j-G).$$
+$$C = B + \beta\sum_j\max(0,L_j-G).$$
 
 The threshold parameter $\tau\in[0,1-G]$ gives an effective packing capacity $G+\tau$. Each threshold algorithm normally places a reported item only where the resulting load is at most $G+\tau$. A single reported item larger than $G+\tau$ occupies its own bin, up to the physical reported capacity 1. The page compares threshold First Fit, Best Fit, Next Fit, Worst Fit, and Harmonic with 10 size classes. It also shows full-capacity First Fit as a reference. All algorithms process the same reported sequence within each trial, and a user-set seed makes trials reproducible. Reported item sizes may be zero after clipping or a zero Simple cap; those still count as arrivals.
 

@@ -43,17 +43,17 @@
     const actual = new Float64Array(settings.jobs);
     const perceived = new Float64Array(settings.jobs);
     const reported = new Float64Array(settings.jobs);
-    const simpleModes = new Uint8Array(settings.jobs);
+    const hardModes = new Uint8Array(settings.jobs);
     for (let i = 0; i < settings.jobs; i += 1) {
       const size = random();
       const z = clamp(size + noise(settings.errorType, settings.errorScale, random), 0, 1);
-      const simple = random() < probability(z);
+      const hard = random() < probability(z);
       actual[i] = size;
       perceived[i] = z;
-      simpleModes[i] = simple ? 1 : 0;
-      reported[i] = simple ? Math.min(settings.simpleThreshold, z) : Math.max(settings.hardThreshold, z);
+      hardModes[i] = hard ? 1 : 0;
+      reported[i] = hard ? Math.max(settings.hardThreshold, z) : Math.min(settings.simpleThreshold, z);
     }
-    return { actual, perceived, simpleModes, reported };
+    return { actual, perceived, hardModes, reported };
   }
 
   function firstFit(sizes, effectiveCapacity) {

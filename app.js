@@ -6,11 +6,11 @@
   const runButton = form.querySelector("button[type=submit]");
   const errorTypes = new Set(["none", "normal", "uniform", "laplace", "triangular", "cauchy", "exponential", "two-point"]);
   const probabilityPresets = {
-    logistic: "1/(1+exp(12*(z-0.5)))",
+    logistic: "1/(1+exp(-12*(z-0.5)))",
     decreasing: "1-z",
     increasing: "z",
     constant: "0.5",
-    step: "step(0.5-z)",
+    step: "step(z-0.5)",
   };
   const algorithmDescriptions = {
     "first-fit": "First Fit checks open bins from oldest to newest and uses the first bin with room.",
@@ -251,9 +251,9 @@
       for (let job = 0; job < settings.jobs; job += 1) {
         const size = Math.random();
         const perceived = clamp(size + noise(settings.errorType, settings.errorScale), 0, 1);
-        const simple = Math.random() < probability(perceived);
+        const hard = Math.random() < probability(perceived);
         actual.push(size);
-        reported.push(simple ? Math.min(settings.simpleThreshold, perceived) : Math.max(settings.hardThreshold, perceived));
+        reported.push(hard ? Math.max(settings.hardThreshold, perceived) : Math.min(settings.simpleThreshold, perceived));
       }
       trueCounts.push(packers[settings.algorithm](actual));
       reportedCounts.push(packers[settings.algorithm](reported));

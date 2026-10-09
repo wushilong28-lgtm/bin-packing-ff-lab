@@ -7,11 +7,11 @@
   const engine = window.GreenPacking;
   const errorTypes = new Set(["none", "normal", "uniform", "laplace", "triangular", "cauchy", "exponential", "two-point"]);
   const probabilityPresets = {
-    logistic: "1/(1+exp(12*(z-0.5)))",
+    logistic: "1/(1+exp(-12*(z-0.5)))",
     decreasing: "1-z",
     increasing: "z",
     constant: "0.5",
-    step: "step(0.5-z)",
+    step: "step(z-0.5)",
   };
   let runSequence = 0;
 
@@ -102,15 +102,15 @@
       normal: ["Standard deviation σ", "Normal distribution: ε ~ N(0, σ²)."],
       uniform: ["Half-width h", "Uniform distribution: ε ~ Uniform(-h, h)."],
       laplace: ["Scale b", "Laplace distribution: centered at 0 with scale b."],
-      triangular: ["Half-width h", "Symmetric triangular distribution on [-h, h]."],
+      triangular: ["Half-width h", "Symmetric triangular distribution: ε lies in [-h, h] and is concentrated near 0."],
       cauchy: ["Scale γ", "Cauchy distribution: centered at 0 with heavy tails."],
-      exponential: ["Scale b", "Centered exponential: ε = b(X − 1), X ~ Exp(1)."],
-      "two-point": ["Magnitude d", "Two-point distribution: ε is -d or +d with equal probability."],
+      exponential: ["Scale b", "Centered exponential: ε = b(X − 1), X ~ Exp(1); right-skewed."],
+      "two-point": ["Magnitude d", "Two-point distribution: ε is equally likely to be -d or +d."],
     };
     const type = $("error-type").value;
     $("error-scale-field").hidden = type === "none";
     $("error-scale-label").textContent = descriptions[type][0];
-    $("error-description").textContent = `${descriptions[type][1]} Clip a + ε to [0, 1] before choosing a mode.`;
+    $("error-description").textContent = `${descriptions[type][1]} Clip a + ε to [0, 1] to obtain z before selecting a mode.`;
   }
 
   function updateRegime() {
