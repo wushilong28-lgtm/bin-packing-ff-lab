@@ -1,10 +1,10 @@
 # Bin Packing Research Lab
 
-An interactive, browser-only experiment comparing two bin packing models under four online placement algorithms.
+An interactive, browser-only research lab with a basic bin-count experiment and a separate Green Bin Packing cost experiment.
 
 The [hosted demo](https://bin-packing-ff-lab.wushilong28.chatgpt.site/) may still show an earlier version than this repository.
 
-## Models
+## Basic experiment (`index.html`)
 
 There are unlimited bins of capacity 1. Jobs arrive in order, with independent true sizes $a_i\sim\mathrm{Uniform}(0,1)$. The selected placement algorithm uses the size available to its model. If no eligible bin fits, it opens a new bin. The objective is the number of bins used.
 
@@ -27,15 +27,27 @@ Both models use the same algorithm and, within each trial, the same true jobs an
 - Judgment error: none, normal, uniform, Laplace, symmetric triangular, Cauchy, centered exponential, or two-point.
 - Simple-mode upper bound $t_s$, Hard-mode lower bound $t_l$, and error scale.
 
+## Green experiment (`green.html`)
+
+The Green page starts with the same reporting pipeline: true size $a_i$, perceived size $z_i=\mathrm{clip}(a_i+\varepsilon_i,0,1)$, Simple/Hard mode selected from $g(z_i)$, and final reported size $r_i$. **All Green placement decisions and all Green costs use only $r_i$.** True-size bin loads, including any actual load above 1, are not checked or charged.
+
+Bins have reported capacity 1. Let $G\in[0,1]$ be the green fill level and $\beta>0$ the price per unit of reported fill above it. For reported bin loads $L_j$, the objective is
+
+$$C = N + \beta\sum_j\max(0,L_j-G).$$
+
+The threshold parameter $\tau\in[0,1-G]$ gives an effective packing capacity $G+\tau$. Each threshold algorithm normally places a reported item only where the resulting load is at most $G+\tau$. A single reported item larger than $G+\tau$ occupies its own bin, up to the physical reported capacity 1. The page compares threshold First Fit, Best Fit, Next Fit, Worst Fit, and Harmonic with 10 size classes. It also shows full-capacity First Fit as a reference. All algorithms process the same reported sequence within each trial, and a user-set seed makes trials reproducible. Reported item sizes may be zero after clipping or a zero Simple cap; those still count as arrivals.
+
+The page reports mean total cost, opening cost, black-space cost, bin count, and black-space volume per trial. For the original known-size threshold formulation, see Bibbens et al., *Green Bin Packing* (arXiv:2510.26968). Applying it to reported sizes is this lab's extension.
+
 ## Run locally
 
-Keep the four web files in one directory and serve them with any static HTTP server, for example:
+Keep the web files together and serve them with any static HTTP server, for example:
 
 ```bash
 python -m http.server 8000
 ```
 
-Then open `http://localhost:8000/`. The experiment runs entirely in the browser; it does not upload jobs or results.
+Then open `http://localhost:8000/` for the basic page or `http://localhost:8000/green.html` for the Green page. The experiments run entirely in the browser; they do not upload jobs or results.
 
 ## Files
 
@@ -43,3 +55,7 @@ Then open `http://localhost:8000/`. The experiment runs entirely in the browser;
 - `styles.css`: layout and styles.
 - `probability.js`: probability-expression parser and validation. It does not evaluate user-supplied JavaScript.
 - `app.js`: sampling, error distributions, placement algorithms, and charts.
+- `green.html`: separate Green Bin Packing experiment page.
+- `green-core.js`: seeded reporting, threshold placement, and cost calculation.
+- `green.js`: Green page form, comparison, and display.
+- `tests/green-core.test.js`: deterministic reporting, placement, and cost checks (`node --test tests/green-core.test.js`).
